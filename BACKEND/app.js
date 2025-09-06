@@ -7,6 +7,7 @@ const mongoSanitize = require('express-mongo-sanitize');
 const xss = require('xss-clean');
 const hpp = require('hpp');
 const path = require('path');
+const errorHandler = require('./middlewares/error');
 
 // Route files
 const auth = require('./routes/auth');
@@ -37,8 +38,8 @@ app.use(cors());
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 10 * 60 * 1000, // 10 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  windowMs: process.env.RATE_LIMIT_WINDOW_MS || 10 * 60 * 1000, // 10 minutes
+  max: process.env.RATE_LIMIT_MAX || 100, // limit each IP to 100 requests per windowMs
 });
 app.use(limiter);
 
@@ -51,11 +52,12 @@ app.use('/api/assessments', assessments);
 app.use('/api/users', users);
 app.use('/api/analytics', analytics);
 
+// Error handling middleware
+app.use(errorHandler);
+
 // Serve static assets in production
 if (process.env.NODE_ENV === 'production') {
-  // Set static folder
   app.use(express.static(path.join(__dirname, '../frontend/build')));
-  
   app.get('*', (req, res) => {
     res.sendFile(path.resolve(__dirname, '../frontend/build', 'index.html'));
   });
@@ -63,10 +65,7 @@ if (process.env.NODE_ENV === 'production') {
 
 // Handle undefined routes
 app.use('*', (req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Route not found'
-  });
+  res.status(404).json({ success: false, message: 'Route not found' });
 });
 
 module.exports = app;
