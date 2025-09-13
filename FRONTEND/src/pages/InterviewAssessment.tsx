@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import { interviewQuestions } from '../data/mockData';
 import { 
   Mic, 
-  MicOff, 
   Play, 
   Square, 
   SkipForward,
@@ -24,9 +23,36 @@ export default function InterviewAssessment() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [hasRecorded, setHasRecorded] = useState(false);
   const [showTips, setShowTips] = useState(true);
+  const [transcript, setTranscript] = useState(''); // speech-to-text result
+
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   const currentQuestion = interviewQuestions[currentQuestionIndex];
   const progress = state.assessmentProgress.interview;
+
+  // Setup Web Speech API
+  useEffect(() => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = true;
+      recognitionRef.current.interimResults = true;
+      recognitionRef.current.lang = 'en-US';
+
+      recognitionRef.current.onresult = (event: SpeechRecognitionEvent) => {
+        let finalTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          finalTranscript += event.results[i][0].transcript;
+        }
+        setTranscript(finalTranscript);
+      };
+
+      recognitionRef.current.onerror = (event: any) => {
+        console.error('Speech recognition error', event.error);
+      };
+    }
+  }, []);
 
   useEffect(() => {
     const hasRecordingForCurrent = progress.recordings[currentQuestion?.id];
@@ -52,11 +78,20 @@ export default function InterviewAssessment() {
   const handleStartRecording = () => {
     setIsRecording(true);
     setRecordingTime(0);
+    setTranscript('');
+
+    if (recognitionRef.current) {
+      recognitionRef.current.start();
+    }
   };
 
   const handleStopRecording = () => {
     setIsRecording(false);
     setHasRecorded(true);
+
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
 
     // Update progress
     const updatedRecordings = { ...progress.recordings, [currentQuestion.id]: true };
@@ -77,6 +112,7 @@ export default function InterviewAssessment() {
       setRecordingTime(0);
       setIsRecording(false);
       setIsPlaying(false);
+      setTranscript('');
     }
   };
 
@@ -178,22 +214,6 @@ export default function InterviewAssessment() {
                     </div>
                   </div>
 
-                  {/* Audio Visualization (Mock) */}
-                  {isRecording && (
-                    <div className="flex items-center justify-center space-x-1 mb-6">
-                      {[...Array(20)].map((_, i) => (
-                        <div
-                          key={i}
-                          className="w-1 bg-blue-500 rounded-full animate-pulse"
-                          style={{
-                            height: `${Math.random() * 40 + 10}px`,
-                            animationDelay: `${i * 50}ms`
-                          }}
-                        />
-                      ))}
-                    </div>
-                  )}
-
                   {/* Controls */}
                   <div className="flex items-center justify-center space-x-4">
                     {!isRecording ? (
@@ -224,6 +244,14 @@ export default function InterviewAssessment() {
                     )}
                   </div>
 
+                  {/* Transcript */}
+                  {transcript && (
+                    <div className="mt-6 bg-white border rounded-lg p-4 text-left shadow-sm">
+                      <h4 className="text-sm font-semibold text-gray-700 mb-2">Transcript:</h4>
+                      <p className="text-sm text-gray-800">{transcript}</p>
+                    </div>
+                  )}
+
                   {/* Action Buttons */}
                   {hasRecorded && (
                     <div className="flex items-center justify-center space-x-4 mt-6">
@@ -245,32 +273,6 @@ export default function InterviewAssessment() {
                   )}
                 </div>
               </div>
-
-              {/* Tips Section */}
-              {showTips && currentQuestion?.tips && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <div className="flex items-start">
-                    <Lightbulb className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                    <div className="ml-3">
-                      <h4 className="text-sm font-semibold text-blue-900 mb-2">Tips for this question:</h4>
-                      <ul className="space-y-1 text-sm text-blue-800">
-                        {currentQuestion.tips.map((tip, index) => (
-                          <li key={index} className="flex items-start">
-                            <span className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-2 mr-2 flex-shrink-0"></span>
-                            {tip}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <button
-                      onClick={() => setShowTips(false)}
-                      className="text-blue-600 hover:text-blue-700 ml-auto"
-                    >
-                      ×
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
 
@@ -291,21 +293,6 @@ export default function InterviewAssessment() {
                     className="bg-blue-600 h-2 rounded-full transition-all"
                     style={{ width: `${(Object.keys(progress.recordings).length / interviewQuestions.length) * 100}%` }}
                   />
-                </div>
-                
-                <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                  <div>
-                    <div className="font-semibold text-blue-600">4</div>
-                    <div className="text-gray-600">Technical</div>
-                  </div>
-                  <div>
-                    <div className="font-semibold text-green-600">2</div>
-                    <div className="text-gray-600">Behavioral</div>
-                  </div>
-                  <div>
-                    <div className="font-semibold text-purple-600">2</div>
-                    <div className="text-gray-600">HR</div>
-                  </div>
                 </div>
               </div>
             </div>
