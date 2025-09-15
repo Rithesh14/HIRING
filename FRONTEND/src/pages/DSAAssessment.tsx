@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import { dsaQuestions } from '../data/mockData';
+import Editor from "@monaco-editor/react";
 import { 
   Clock, 
   Save, 
@@ -12,7 +13,6 @@ import {
   ChevronRight,
   Code,
   CheckCircle,
-  Circle,
   Dot
 } from 'lucide-react';
 
@@ -28,12 +28,34 @@ export default function DSAAssessment() {
   const currentQuestion = dsaQuestions[currentQuestionIndex];
   const progress = state.assessmentProgress.dsa;
 
+  // Load from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('dsaAssessment');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      setCurrentQuestionIndex(parsed.index || 0);
+      setCode(parsed.code || '');
+      setLanguage(parsed.language || 'javascript');
+      setTimeLeft(parsed.timeLeft || 25 * 60);
+    }
+  }, []);
+
+  // Save to localStorage
+  useEffect(() => {
+    localStorage.setItem(
+      'dsaAssessment',
+      JSON.stringify({ index: currentQuestionIndex, code, language, timeLeft })
+    );
+  }, [currentQuestionIndex, code, language, timeLeft]);
+
+  // Load default template for each question/language
   useEffect(() => {
     if (currentQuestion) {
       setCode(currentQuestion.template[language] || '');
     }
   }, [currentQuestion, language]);
 
+  // Timer countdown
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeLeft((prev) => Math.max(0, prev - 1));
@@ -49,6 +71,7 @@ export default function DSAAssessment() {
 
   const handleRunCode = () => {
     setShowOutput(true);
+    // Mock output (replace with API call to Judge0 if needed)
     setTestOutput(`Test Case 1: ✓ Passed
 Input: [2,7,11,15], target = 9
 Output: [0,1]
@@ -81,6 +104,12 @@ Memory Usage: 2.0MB`);
       setShowOutput(false);
       setTestOutput('');
     }
+  };
+
+  const handleReset = () => {
+    setCode(currentQuestion.template[language] || '');
+    setShowOutput(false);
+    setTestOutput('');
   };
 
   const getDifficultyColor = (difficulty: string) => {
@@ -121,13 +150,22 @@ Memory Usage: 2.0MB`);
           </div>
 
           <div className="flex items-center space-x-6">
-            <div className="flex items-center space-x-2">
-              <Clock className="w-5 h-5 text-gray-500" />
-              <span className={`font-mono text-lg font-semibold ${
-                timeLeft < 300 ? 'text-red-600' : 'text-gray-900'
-              }`}>
-                {formatTime(timeLeft)}
-              </span>
+            {/* Timer with progress bar */}
+            <div className="flex flex-col items-end">
+              <div className="flex items-center space-x-2">
+                <Clock className="w-5 h-5 text-gray-500" />
+                <span className={`font-mono text-lg font-semibold ${
+                  timeLeft < 300 ? 'text-red-600' : 'text-gray-900'
+                }`}>
+                  {formatTime(timeLeft)}
+                </span>
+              </div>
+              <div className="w-40 h-2 bg-gray-200 rounded-full overflow-hidden mt-1">
+                <div
+                  className={`h-full ${timeLeft < 300 ? 'bg-red-500' : 'bg-blue-500'}`}
+                  style={{ width: `${(timeLeft / (25 * 60)) * 100}%` }}
+                />
+              </div>
             </div>
 
             <button className="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 bg-white rounded-lg hover:bg-gray-50">
@@ -235,7 +273,10 @@ Memory Usage: 2.0MB`);
                   <Send className="w-4 h-4 mr-2" />
                   Submit
                 </button>
-                <button className="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
+                <button
+                  onClick={handleReset}
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
                   <RotateCcw className="w-4 h-4 mr-2" />
                   Reset
                 </button>
@@ -244,12 +285,14 @@ Memory Usage: 2.0MB`);
           </div>
 
           <div className="flex-1 flex flex-col">
-            <textarea
+            {/* Monaco Editor */}
+            <Editor
+              height="100%"
+              theme="vs-dark"
+              language={language}
               value={code}
-              onChange={(e) => setCode(e.target.value)}
-              className="flex-1 p-4 font-mono text-sm border-none focus:outline-none resize-none bg-gray-900 text-gray-100"
-              placeholder="Write your solution here..."
-              spellCheck={false}
+              onChange={(value) => setCode(value || '')}
+              options={{ minimap: { enabled: false }, fontSize: 14 }}
             />
 
             {showOutput && (
